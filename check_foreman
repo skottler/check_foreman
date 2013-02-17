@@ -1,0 +1,78 @@
+#!/usr/bin/env ruby
+
+require 'optparse'
+require 'net/http'
+require 'uri'
+require 'json'
+
+options = {}
+
+opts = OptionParser.new do |opt|
+  opt.banner = "USAGE: #{__FILE__} COMMAND [OPTIONS]"
+
+  opt.on("-H", "--host ADDRESS", "The address of the Foreman server to monitoring") do |host|
+    options[:host] = host
+  end
+
+  opt.on("-w" "--warning LEVEL", "Percentage or host count of out-of-sync hosts to trigger a warning") do |warning|
+    options[:warning_level] = warning
+  end
+
+  opt.on("-c" "--critical LEVEL", "Percentage or host count of out-of-sync hosts to trigger a crit") do |crit|
+   options[:critical_level] = crit
+  end
+
+  opt.on("-u" "--username USER", "The basic auth username") do |username|
+    options[:username] = username
+  end
+
+  opt.on("-p", "--password PASSWORD", "The password to make requests") do |password|
+    options[:password] = password
+  end
+end
+
+opts.parse!
+
+def response_code(message, code)
+  puts message unless message.nil?
+  exit(code)
+end
+
+def okay(message)
+  response_code(message, 0)
+end
+
+def warning(message)
+  response_code(message, 1)
+end
+
+def critical(message)
+  response_code(message, 2)
+end
+
+def unknown
+  response_code(3)
+end
+
+def credentials?(options)
+  if (options[:username] and options[:password])
+    true
+  else
+    false
+  end
+end
+
+def retrieve_dashboard_data(options)
+  uri = URI.parse("#{options[:host]}/dashboard")
+  http = Net::HTTP.new(uri.host, uri.port)
+  http.use_ssl = true if options[:use_ssl]
+  request = Net::HTTP.get(options[:host], 'dashboard')
+  request["Content-Type"] = "application/json"
+  request.basic_auth(options[:username], options[:password]) if credentials?(options)
+  response = http.request(request)
+  return response.body
+end
+
+def parse_and_alert
+  dashboard = JSON.parse(retrieve_dashboard_data)
+end
